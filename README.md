@@ -481,12 +481,6 @@ It demonstrates how predictive analytics can improve **system reliability and av
 
 ---
 
-# 18. LinkedIn Project Summary
-
-**Predictive Autoscaling for Kubernetes**
-
-Built a predictive autoscaling controller that forecasts workload using Prometheus metrics and scales pods before traffic spikes occur. The system predicts future request rates using time-series forecasting and proactively adjusts infrastructure capacity to reduce service throttling caused by reactive autoscaling.
-
 **Tech Stack**
 
 ```
