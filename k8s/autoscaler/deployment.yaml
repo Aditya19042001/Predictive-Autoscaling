@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-autoscaler
+  namespace: default
+  labels:
+    app: predictive-autoscaler
+spec:
+  replicas: 1     # Always run exactly one autoscaler instance
+  selector:
+    matchLabels:
+      app: predictive-autoscaler
+  template:
+    metadata:
+      labels:
+        app: predictive-autoscaler
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: predictive-autoscaler-sa
+      containers:
+        - name: autoscaler
+          image: predictive-autoscaler:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9091     # Self-metrics port
+          env:
+            - name: PROMETHEUS_URL
+              value: "http://prometheus:9090"
+            - name: TARGET_DEPLOYMENT
+              value: "api-service"
+            - name: NAMESPACE
+              value: "default"
+            - name: POD_CAPACITY_RPS
+              value: "150"
+            - name: MIN_PODS
+              value: "1"
+            - name: MAX_PODS
+              value: "10"
+            - name: LOOKBACK_MINUTES
+              value: "20"
+            - name: HORIZON_MINUTES
+              value: "10"
+            - name: LOOP_INTERVAL_SECONDS
+              value: "60"
+            - name: SCALE_DOWN_THRESHOLD
+              value: "0.6"
+            - name: COOLDOWN_SECONDS
+              value: "600"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"

@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: default
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s          # How often to scrape targets
+      evaluation_interval: 5s      # How often to evaluate rules
+      scrape_timeout: 4s
+
+    scrape_configs:
+
+      # --- API service pods (direct pod scrape via annotation discovery) ---
+      - job_name: "api-service"
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [default]
+        relabel_configs:
+          # Only scrape pods that opted in via annotation
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          # Carry pod name and node as labels on every metric
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # --- Predictive autoscaler self-metrics (port 9091) ---
+      - job_name: "predictive-autoscaler"
+        static_configs:
+          - targets: ["predictive-autoscaler:9091"]
+        metrics_path: /metrics
+
+      # --- Prometheus itself ---
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["localhost:9090"]

@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: predictive-autoscaler-role
+rules:
+  # Read and patch Deployments and their scale subresource
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch", "update"]
+  # Read Pod info (for observability, not strictly required)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]

@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-generator
+  namespace: default
+spec:
+  # Do not restart — run the traffic pattern once and exit
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: load-generator
+          image: locustio/locust:2.24.0
+          command:
+            - locust
+            - --headless
+            - --host=http://api-service:8000
+            - --users=200
+            - --spawn-rate=10
+            - --run-time=10m
+            - --locustfile=/locust/locustfile.py
+            - --csv=/tmp/results
+          volumeMounts:
+            - name: locustfile
+              mountPath: /locust
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: locustfile
+          configMap:
+            name: locustfile-config
+---
+# Mounts the locustfile into the Job pod
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locustfile-config
+  namespace: default
+data:
+  locustfile.py: |
+    from locust import HttpUser, task, between, constant_pacing
+    import time, math
+
+    class APIUser(HttpUser):
+        # Pacing: ramp up between minutes 3-6, cool down after
+        wait_time = between(0.05, 0.2)
+
+        @task(8)
+        def ping(self):
+            self.client.get("/api/v1/ping", name="/ping")
+
+        @task(2)
+        def process(self):
+            self.client.post(
+                "/api/v1/process",
+                json={"data": "load-test-payload", "complexity": 3},
+                name="/process",
+            )

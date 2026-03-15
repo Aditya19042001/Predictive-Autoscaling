@@ -1,0 +1,127 @@
+# docker-compose.yaml
+# -------------------
+# Runs the full stack locally WITHOUT Kubernetes or Minikube.
+# Use this for rapid iteration on the autoscaler logic before deploying to k8s.
+#
+# What's different from the k8s setup:
+#   - The autoscaler uses kubeconfig from ~/.kube/config (out-of-cluster auth)
+#     Set KUBECONFIG if yours lives elsewhere.
+#   - Kubernetes scaling calls will target whatever cluster kubectl points at.
+#     To fully decouple, comment out the autoscaler service and just use
+#     Prometheus + the API to develop/test the forecaster.
+#
+# Usage:
+#   docker compose up                        # start everything
+#   docker compose up api-service prometheus  # start just the metric stack
+#   docker compose down -v                   # stop and remove volumes
+
+version: "3.9"
+
+networks:
+  autoscaler-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # API Service
+  # Exposes port 8000 on the host so Locust can hit it directly.
+  # ---------------------------------------------------------------------------
+  api-service:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: api-service:latest
+    container_name: api-service
+    ports:
+      - "8000:8000"
+    environment:
+      POD_NAME: "docker-local"
+      NAMESPACE: "docker-compose"
+      NODE_NAME: "localhost"
+    networks:
+      - autoscaler-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Prometheus
+  # Scrapes api-service every 5s. UI available at http://localhost:9090.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=1d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - autoscaler-net
+    depends_on:
+      - api-service
+
+  # ---------------------------------------------------------------------------
+  # Predictive Autoscaler
+  # Queries Prometheus and patches Kubernetes via the host's kubeconfig.
+  # KUBECONFIG is mounted read-only so no credentials are copied into the image.
+  # ---------------------------------------------------------------------------
+  autoscaler:
+    build:
+      context: ./autoscaler
+      dockerfile: Dockerfile
+    image: predictive-autoscaler:latest
+    container_name: predictive-autoscaler
+    ports:
+      - "9091:9091"
+    environment:
+      PROMETHEUS_URL: "http://prometheus:9090"
+      TARGET_DEPLOYMENT: "api-service"
+      NAMESPACE: "default"
+      POD_CAPACITY_RPS: "150"
+      MIN_PODS: "1"
+      MAX_PODS: "10"
+      LOOP_INTERVAL_SECONDS: "60"
+      SCALE_DOWN_THRESHOLD: "0.6"
+      COOLDOWN_SECONDS: "600"
+      KUBECONFIG: "/root/.kube/config"
+    volumes:
+      - "${KUBECONFIG:-$HOME/.kube/config}:/root/.kube/config:ro"
+    networks:
+      - autoscaler-net
+    depends_on:
+      - prometheus
+
+  # ---------------------------------------------------------------------------
+  # Grafana
+  # Auto-provisions Prometheus datasource. UI at http://localhost:3000.
+  # Login disabled for convenience (see k8s notes on production hardening).
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards/autoscaler-dashboard.json:/var/lib/grafana/dashboards/autoscaler.json:ro
+    networks:
+      - autoscaler-net
+    depends_on:
+      - prometheus

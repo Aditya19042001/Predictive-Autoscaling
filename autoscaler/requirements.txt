@@ -1,0 +1,7 @@
+kubernetes==29.0.0
+requests==2.31.0
+statsmodels==0.14.1
+pandas==2.2.1
+numpy==1.26.4
+prometheus-client==0.20.0
+psutil==5.9.8

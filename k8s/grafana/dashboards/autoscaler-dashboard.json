@@ -1,0 +1,126 @@
+{
+  "title": "Predictive Autoscaler",
+  "uid": "predictive-autoscaler",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Actual RPS vs Predicted RPS",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "min": 0 }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m]))",
+          "legendFormat": "Actual RPS"
+        },
+        {
+          "expr": "autoscaler_predicted_rps",
+          "legendFormat": "Predicted RPS (Holt-Winters)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pod Count",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "decimals": 0 }
+      },
+      "targets": [
+        {
+          "expr": "autoscaler_current_pods",
+          "legendFormat": "Current pods"
+        },
+        {
+          "expr": "autoscaler_target_pods",
+          "legendFormat": "Target pods"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Request Latency Percentiles",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "min": 0 }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Inflight Requests",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "expr": "sum(inflight_requests)",
+          "legendFormat": "Inflight"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Scale Events",
+      "type": "timeseries",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [
+        {
+          "expr": "increase(autoscaler_scale_events_total{direction='up'}[1m])",
+          "legendFormat": "Scale Up"
+        },
+        {
+          "expr": "increase(autoscaler_scale_events_total{direction='down'}[1m])",
+          "legendFormat": "Scale Down"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "CPU Usage per Pod",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "expr": "cpu_usage_percent",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 7 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "min": 0 } },
+      "targets": [
+        {
+          "expr": "sum(rate(http_errors_total[1m]))",
+          "legendFormat": "Errors/s"
+        }
+      ]
+    }
+  ]
+}

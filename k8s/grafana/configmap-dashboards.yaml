@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: default
+data:
+  autoscaler-dashboard.json: |
+    # Contents are loaded from the JSON file at deploy time.
+    # In practice, use kustomize or helm to inject the JSON here.
+    # For manual deploy: kubectl create configmap grafana-dashboards
+    #   --from-file=dashboards/autoscaler-dashboard.json
